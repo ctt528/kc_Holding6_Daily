@@ -1,0 +1,423 @@
+{a 2bar setup BEFORE IT CLOSES.
+	1)strong move in one direction(BearFib bar)
+	2)2nd bar if it does not make a LL AND it goes up into the middle-third of the bear fib bar AND goes down and makes LL beating Low[1] THEN sellshort.
+}
+//For HTF like Daily charts, I don't think the bearfib or Bullfib needs to be huge. I would take out the ATR condition. 
+//Update every day the ATR and SD from previous day...from Kc_ATR(830-3pm)(select timefram)
+//12/19/20 Changed ATR to ACB(830-3pm)(Flawless)
+//Use 125 bars back for backtesting bc ACB takes hella(124) bars..(I think).
+
+{12/19/20 update
+I think add Candlestatus. So if it breaks the bullhigh and there is <50% left in the bar, then by all means take the trade.
+Going to need to create a candlestatus that can be accessed historically. As "CandleStatus" is computing current time. not backtesting time. 
+Use 1min psp.time = 901
+and time = 905
+(using 5min chart)
+This theory is FLAWED. You have to use a 1min chart and then HTF psp.
+--Also flawed bc candlestatus uses current day computer time, so the backtest would never work.}
+
+Once clearprintlog;
+[intrabarordergeneration = true];
+
+Inputs:
+	Num_of_SD(1), // 0 = bullfib just needs to be > ACB //  1= > ACB+1sd
+	Percent_of_risk_for_Target(1), //1 = 1:1. 2= 1risk for 2reward
+	ACBStarttime(0830),
+	ACBEndtime(1600),
+	tick(.25),
+	tickvalue(5),
+	RiskPerTrade(1000);
+	//Number(3);
+	
+
+Vars:
+	PercentOFFib_T1(.50),
+	Ticksize(.25),
+	//TickValue(12.50),//these 3 are used in entries/targets if chosen. By default it is not chosen so no need to change. 
+//bull
+	intrabarpersist BullFib_Bottomwick(0), 
+	intrabarpersist BullFib_Upperwick(0),
+	intrabarpersist BullFib_Range(0),
+	intrabarpersist BullFib(False),
+	Intrabarpersist BullSixtysix(0),
+	intrabarpersist BullSecondBarLow(0),
+	intrabarpersist BullSecondBar_Range(0),
+	intrabarpersist BullSecondBar_Upperwick(0),
+	intrabarpersist BullSecondBar_Bottomwick(0),
+	intrabarpersist BullSecondBar_CandlebodyRange(0),
+	intrabarpersist BullFib_CandlebodyRange(0),
+	intrabarpersist BullTarget(0),
+	Intrabarpersist BullCondition(False),
+	Intrabarpersist BullTargetFar(0),
+	Intrabarpersist BullMoveStop(0),
+
+//bear	
+	intrabarpersist BearFib_Bottomwick(0),
+	intrabarpersist BearFib_Upperwick(0),
+	intrabarpersist BearFib_Range(0),
+	intrabarpersist BearFib(False),
+	intrabarpersist SecondBar_Range(0),
+	intrabarpersist SecondBar_Upperwick(0),
+	intrabarpersist SecondBar_Bottomwick(0),
+	intrabarpersist Targett(0),
+	intrabarpersist BearFib_CandlebodyRange(0),
+	intrabarpersist SecondBar_CandlebodyRange(0),
+	intrabarpersist BearsixtySix(0),
+	Intrabarpersist BearCondition(False), 
+	Intrabarpersist BearTargetFar(0),
+	Intrabarpersist BearMoveStop(0),
+	Intrabarpersist BullFib_OpenHighRange(0),
+	
+	BullTargetone(0),
+	BullTargettwo(0),
+	BullTargetthree(0),
+	BullTargetfour(0),
+	BullTargetfive(0),
+	BullTargetsix(0),
+	BullSecondBarLowStop(0),
+	
+	BearTargetone(0),
+	BearTargettwo(0),
+	BearTargetthree(0),
+	BearTargetfour(0),
+	BearTargetfive(0),
+	BearTargetsix(0),
+	intrabarpersist BearSecondBarhighStop(0),
+	
+	Intrabarpersist Bearthirtythree(0),
+	intrabarpersist BearfibTime(0),
+	intrabarpersist Bullthirtythree(0),
+	intrabarpersist BullfibTime(0),
+	intrabarpersist BearpivotSTOP(0),
+	intrabarpersist BullpivotSTOP(0),
+	intrabarpersist BearTarget(0),
+	intrabarpersist Bearlow (0),
+	intrabarpersist bullhigh(0),
+	intrabarpersist BearFib_OpenLow_Range(0),
+	//intrabarpersist counter(0),
+	intrabarpersist bearrange(0),
+	intrabarpersist bullrange(0),
+	intrabarpersist BearIH(0),
+	intrabarpersist BullIL(0),
+	intrabarpersist BearexactticksT1(0),
+	intrabarpersist BearexactticksT1_Rounded(0),
+	intrabarpersist BullexactticksT1(0),
+	intrabarpersist BullexactticksT1_Rounded(0),
+	intrabarpersist timecheck(false),
+	intrabarpersist BearRisk_inTicks(0),
+	intrabarpersist BullRisk_inTicks(0),
+	intrabarpersist ContractsEntered(1),
+	intrabarpersist contractsEnteredMinus1(0),
+	intrabarpersist ContractsEnteredLong(0),
+	intrabarpersist ContractsEnteredShort(0),
+	intrabarpersist ContractsEnteredShortminus1(0),
+	intrabarpersist ContractsEnteredLongminus1(0),
+	Bearrisk(0),
+	BearTicks_Risk(0),
+	BearMoney1contract_Risk(0),
+	BearMoneyALLContracts_Risk(0),
+	BearMoney1Contract_T1(0),
+	BearNumTicksToBreakeven_T1_RoundedDN(0),
+	BearPriceMoveToBreakeven_T1(0),
+	Bear_T1(0),
+	BullRisk(0),
+	BullTicks_Risk(0),
+	BullMoney1contract_Risk(0),
+	BullMoneyALLContracts_Risk(0),
+	BullMoney1Contract_T1(0),
+	BullNumTicksToBreakeven_T1(0),
+	BullNumTicksToBreakeven_T1_RoundedDN(0),
+	BullPriceMoveToBreakeven_T1(0),
+	Bull_T1(0),
+	BearNumTicksToBreakeven_T1(0),
+	
+	
+	
+	ACB(0),
+	ACBShortTerm(0),
+	ACBLongTerm(0),
+	CandlebodySD(0),
+	ii(0),
+	iii(0),
+	CandlebodyStandardDev(0),
+	Insideonesd(0),
+	Insidetwosd(0),
+	count(0),
+	ACBLength(24), //AvgCandleBody
+	ACBShortLength(5),
+	ACBLongLength(84),
+	num(100),
+	CurrentACB(0);
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//ATR:
+ACB = Average( TruecandlebodyRange, ACBLength ) ;
+ACBShortTerm = Average( TruecandlebodyRange, ACBShortLength ) ;
+ACBLongTerm = Average( TruecandlebodyRange, ACBLongLength ) ;
+CurrentACB = TruecandlebodyRange;
+
+//Plot1(ACB, !("ACB"));
+//Plot2(ACBShortterm, !("ShortTermACB"));
+//Plot8(CurrentACB, !("CurrentACB"));
+//Plot3(ACBlongterm, !("LongtermACB")); 
+//Print(close, "   ", time, "    ", date);
+
+//initialize: "the most important step"
+count = 0;
+Insideonesd = 0;
+Insidetwosd = 0;
+CandlebodySD = 0; 
+For ii = 1 to num //not 0 because the current bar has not closed yet, so we shouldn't take its data and treat it like it like the others. 
+Begin
+	CandlebodySD = CandlebodySD + Power((Truecandlebodyrange[ii]-ACB[ii]),2); //seperate logic(that's why it's indented.	
+	If ii = num then CandlebodyStandardDev = Squareroot(CandlebodySD/num);
+	
+	If ii = num then 
+	Begin
+		For iii = 1 to num
+		Begin
+			if truecandlebodyrange[iii] <= ACB[iii]+CandlebodyStandarddev and truecandlebodyrange[iii] >= ACB[iii]-CandlebodyStandarddev then InsideOneSD = InsideOneSD + 1;
+			if truecandlebodyrange[iii] <= ACB[iii]+CandlebodyStandarddev+CandlebodyStandarddev and truecandlebodyrange[iii] >= ACB[iii]-CandlebodyStandarddev-CandlebodyStandarddev then InsidetwoSD = InsidetwoSD + 1;
+			Count = count + 1;
+		//If iii = num then print("The last ", count, " bars, ", iff(count<>0, InsideoneSD/count,1)*100, " % of them were within 1SD. ", "And ", iff(count<>0, InsidetwoSD/count,1)*100, " % of them were within 2SD."  ); 
+		End;
+	End;
+end;
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//WHILE THE BAR IS IN PLAY
+If barstatus(1) = 1 then 
+Begin
+
+//Reset
+If BearfibTime <> time[1] then 
+Begin
+	BearFib = false;
+	BearCondition = false;
+End;
+If Bearfib = false then 
+Begin
+	BearCondition = false;
+End;
+
+	if marketposition = 0 then
+	Begin
+		BearFib_Bottomwick = (close[1] - low[1]);
+		BearFib_Upperwick = (High[1] - open[1]);
+		BearFib_Range = (High[1] - Low[1]);
+		BearFib_CandlebodyRange = (Open[1] - close[1]);
+		BearFib_OpenLow_Range = (Open[1] - Low[1]);
+
+	//BEAR FIB	
+		if Truecandlebodyrange[1] > (ACB + (CandlebodyStandarddev*Num_of_SD)) 
+		and
+		BearFib_upperwick < (BearFib_Range * .33) 
+		And
+		BearFib_CandlebodyRange / BearFib_Range > .50 	
+		and
+		close[1] <=  (low[1] + (BearFib_OpenLow_Range * .33))
+		And
+		close[1] < open[1]	
+		Then 
+		BearFib = true
+		Else 
+		BearFib = False;	
+	//if last bar was a BearFib
+		if bearfib = true then
+		Begin
+			Bearthirtythree = low[1] + (BearFib_OpenLow_Range * .33);
+			bearsixtysix = low[1] + (BearFib_OpenLow_Range * .66);
+			//bearsixtysix = value2 + (1 - mod(value1,.25));
+			BearfibTime = time[1];
+			Bearlow = low[1];
+			BearIH = high;
+		End;
+	
+	//BEAR SECOND BAR
+	 	if Bearfib = true and bearcondition = false then
+	 	Begin
+	 		if
+			Low > bearlow 
+			And
+			High > Bearthirtythree
+			and
+			High < Bearsixtysix
+			Then Bearcondition = true;
+			If low < low[1] or high > Bearsixtysix then Bearfib = false;
+	//If date = 1201203  then print(time,"    ",low,"   ", bearlow);
+		end;
+			If Bearfib = false then //Reset
+			Begin
+				BearCondition = false;
+			End;
+		
+		
+	//Then if it breaks the fibbar low. sellllllllitttttttttt
+		If Bearfib = true and Bearcondition = true then
+		Begin
+			If high > bearsixtysix then bearfib = false;	
+			If low < low[1] then
+			begin
+				BearTarget = iff(BearFib_Range <>0, (Low - (Low[1] - high) / BearFib_Range),1);
+				BearpivotSTOP = high;
+				Bearrange = Bearfib_range;
+				BearRisk = (BearIH - Bearlow);
+				BearRisk_inTicks = iff(tick<>0, (BearIH - Bearlow)/tick, 1);
+				ContractsEntered = iff(BearRisk_inticks<>0, (RiskPerTrade / (BearRisk_inTicks * tickValue)) , 1);
+				ContractsEnteredShort = ContractsEntered - mod(ContractsEntered,1);
+				//ContractsEnteredShortminus1 = ContractsEnteredShort - (ContractsEnteredShort * RiskforT1);
+				//ContractsEnteredShortminus2 = ContractsEnteredShortminus1 - mod(ContractsEnteredShortminus1,1);
+				if marketposition = 0 and CandlebodyStandardDev > 0.000 and (dayofweek(date) <> 0 and dayofweek(date) <> 5){and candlestatus < 80} then sellshort("short") ContractsEnteredShort contract next bar at market;
+				//print(low[1],"  ",date,"  ", time);
+			end;
+		End;
+		
+
+	End;
+End;
+/////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////	
+////////////////////////////////////////////////////////////////////////////	
+If barstatus(1) = 1 then 
+Begin
+//Reset
+If BullfibTime <> time[1] then 
+Begin
+	BullFib = false;
+	BullCondition = false;
+End;
+If bullfib = false then
+Begin
+	BullCondition = false;
+End;
+
+	if marketposition = 0 then
+	Begin
+		BullFib_Bottomwick = (open[1] - low[1]);
+		BullFib_Upperwick = (High[1] - close[1]);
+		BullFib_Range = (High[1] - Low[1]);
+		BullFib_CandlebodyRange = (close[1] - open[1]);
+		BullFib_OpenHighRange = (High[1] - open[1]);
+	//BEAR FIB	
+		if Truecandlebodyrange[1] > (ACB + (CandlebodyStandarddev*Num_of_SD)) 
+		and
+		BullFib_bottomwick < (BullFib_Range * .33) 
+		And
+		BullFib_CandlebodyRange / BullFib_Range > .50 	
+		and
+		close[1] >=  (high[1] - (BullFib_OpenHighRange * .33))	
+		And 
+		close[1] > open[1]
+		Then 
+		BullFib = true
+		Else 
+		BullFib = False;	
+//if bullfib = true then Print(time,"		", date,"		");
+	//if last bar was a BearFib
+		if Bullfib = true then
+		Begin
+			Bullthirtythree = high[1] - (BullFib_OpenHighRange * .33);
+			bullsixtysix = high[1] - (BullFib_OpenHighRange * .66);
+			//bullsixtysix = value1 - mod(value1,.25);	//Bullsixtysix + (.25 - mod(Bullsixtysix, .25));
+			BullfibTime = time[1];
+			bullhigh = high[1];
+			BullIL = Low;
+		End;
+	
+	//BULL SECOND BAR
+	 	if bullfib = true and bullcondition = false then
+	 	Begin
+	 		if
+			High < bullHigh 
+			And
+			low < Bullthirtythree
+			and
+			low > Bullsixtysix
+			Then Bullcondition = true;
+			If high > high[1] or low < Bullsixtysix then bullfib = false;
+		end;
+			If bullfib = false then //reset
+			Begin
+				BullCondition = false;
+			End;
+		
+	//Then if it breaks the fibbar low. sellllllllitttttttttt
+		If Bullfib = true and Bullcondition = true then
+		Begin
+			If Low < bullsixtysix then Bullfib = false;	
+			If high > high[1] then
+			begin
+				BullTarget = iff(BullFib_Range <>0, (High + (high[1] - low) / BullFib_Range),1);
+				BULLpivotSTOP = low;
+				Bullrange = bullfib_range;
+				BullRisk = (BullHigh - bullIL);
+				BullRisk_inTicks = iff(tick<>0, (BullHigh - bullIL)/tick, 1);
+				ContractsEntered = iff(BullRisk_inticks*tickvalue<>0, (RiskPerTrade / (BullRisk_inTicks * tickValue)) , 1);
+				ContractsEnteredLong = ContractsEntered - mod(ContractsEntered,1);
+				//ContractsEnteredLongminus1 = ContractsEnteredLong - (ContractsEnteredLong * RiskforT1);
+				//ContractsEnteredLongminus2 = ContractsEnteredLongminus1 - mod(ContractsEnteredLongminus1,1);
+				if marketposition = 0 and CandlebodyStandarddev > 0.000 and (dayofweek(date) <> 0 and dayofweek(date) <> 5) {and candlestatus < 80} then Buy("Long") ContractsEnteredLong contract next bar at market;
+			end;
+		End;
+
+End;	
+End;	
+//EXITS		
+If marketposition = -1 then
+Begin
+	Begin
+	//Compute risk:
+	BearRisk = BearIH - Entryprice(0){Bearlow};
+	BearTicks_Risk = iff(TickSize<>0, Bearrisk/TickSize,1);
+	BearMoney1contract_Risk = BearTicks_Risk * TickValue;
+	//BearMoneyALLContracts_Risk = BearMoney1contract_Risk * NumContracts_Risk; //This is for pyramiding the otherway. To have r:r having reward very close to entry, we take profit very early and have 1contracts worth of risk. (cheating! man I tell you. I risk 108 ticks but my breakeven point is 12ticks in the green.)x10entry, x9 T1.
+	BearMoney1Contract_T1 = ContractsEnteredminus1 * TickValue;
+	BearNumTicksToBreakeven_T1 = iff(BearMoney1Contract_T1<>0, BearMoney1Contract_Risk / BearMoney1Contract_T1,1);
+	BearNumTicksToBreakeven_T1_RoundedDN = BearNumtickstoBreakeven_T1 + (1 - mod(BearNumTicksToBreakeven_T1, 1)); //CHANGED TO ROUNDING UP
+	BearPriceMoveToBreakeven_T1 = BearNumTicksToBreakeven_T1_RoundedDN * TickSize; 
+	Bear_T1 = Entryprice(0) - BearPriceMoveToBreakeven_T1;
+		Buytocover("Stop") ContractsEnteredShort contract next bar at BearIH stop;
+		//Buytocover("T1") ContractsEnteredminus1 contract next bar at Bear_T1 limit;
+		//Buytocover("T2") 1 contract next bar at (BearLow - (BearFib_Range * PercentOfFib_T1)) limit;	
+		
+		//Buytocover("Stop") ContractsEntered contract next bar at (Entryprice + (ticksize*30)) stop;
+		//Buytocover contractsentered contract next bar at (Entryprice - (ticksize*50)) limit;
+		Buytocover ContractsEnteredShort contract next bar at (Entryprice {- number)}-(bearrisk*Percent_of_risk_for_Target)) limit;			
+	End;
+End;
+
+If marketposition = 1 then
+Begin
+	Begin
+		//Compute risk:
+		BullRisk = Entryprice(0){BullHigh} - BullIL;
+		BullTicks_Risk = iff(TickSize<>0, Bullrisk/TickSize,1);
+		BullMoney1contract_Risk = BullTicks_Risk * TickValue;
+		//BullMoneyALLContracts_Risk = BullMoney1contract_Risk * NumContracts_Risk; //This is for pyramiding the otherway. To have r:r having reward very close to entry, we take profit very early and have 1contracts worth of risk. (cheating! man I tell you. I risk 108 ticks but my breakeven point is 12ticks in the green.)x10entry, x9 T1.
+		BullMoney1Contract_T1 = ContractsEnteredminus1 * TickValue;
+		BullNumTicksToBreakeven_T1 = iff(BullMoney1Contract_T1<>0, BullMoney1Contract_Risk / BullMoney1Contract_T1,1);
+		BullNumTicksToBreakeven_T1_RoundedDN = BullNumtickstoBreakeven_T1 + (1 - mod(BullNumTicksToBreakeven_T1, 1));	//CHANGED TO ROUNDED UP
+		BullPriceMoveToBreakeven_T1 = BullNumTicksToBreakeven_T1_RoundedDN * TickSize; 
+		Bull_T1 = Entryprice(0) + BullPriceMoveToBreakeven_T1;
+		Sell("Stop.") ContractsEnteredLong contract next bar at BullIL stop;
+		//Sell("T1.") Contractsenteredminus1 contract next bar at Bull_T1 limit;//NextOpposingDemand limit; //Entryprice - ((BullsixtySix - entryprice)/2){(NextOpposingDemand)} limit;	
+		//Sell("T2.") 1 contract next bar at (BullHigh + (BullFib_Range * PercentOfFib_T1)) limit;
+		
+		//Sell("Stop.") ContractsEntered contract next bar at (entryprice - (ticksize*30)) stop;
+		//Sell contractsentered contract next bar at (entryprice + (ticksize*50)) limit;
+		Sell ContractsEnteredLong contract next bar at (entryprice {+ number)}+(bullrisk*Percent_of_risk_for_Target)) limit;
+	end;
+End;	
+//If date = 1201111 then print(time,"		",bearsixtysix,"		");
+
+{ADDS:
+	Don't hold over weekends.
+	Optimize combinations: Night vs day, which products. 
+	
+	}
+	//If date = 1201117 and time = 1500 then print(time,"  15min: ",min60array2AVG);
+	//If date = 1201117 and time = 0930 then print(time,"  1min: ",min60array2AVG,"    ", Truerangestandarddev,"   ", min60counter,"   ",barnumber);
+//print(date,"		", ACB, "		", CandlebodyStandardDev);
